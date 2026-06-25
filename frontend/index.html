@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>gallery-dl OSINT Archive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              panel: "#111827",
+              panel2: "#0f172a",
+              line: "#273449",
+              ink: "#e5e7eb",
+              muted: "#94a3b8",
+              accent: "#38bdf8"
+            }
+          }
+        }
+      };
+    </script>
+  </head>
+  <body class="min-h-screen bg-slate-950 text-ink">
+    <main class="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 px-4 py-4">
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+        <div>
+          <h1 class="text-xl font-semibold tracking-tight">Archive with gallery-dl</h1>
+          <p class="text-sm text-muted">Add targets, choose a folder, run locally.</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-muted">
+          <span id="backendStatus" class="rounded border border-line px-2 py-1">Backend: checking</span>
+          <span id="galleryVersion" class="rounded border border-line px-2 py-1">gallery-dl: checking</span>
+        </div>
+      </header>
+
+      <section class="grid min-w-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
+        <form id="jobForm" class="space-y-4" autocomplete="off">
+          <section class="rounded-lg border border-line bg-panel p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h2 class="font-medium">1. Targets</h2>
+              <button type="button" id="addUrlBtn" class="rounded bg-sky-500 px-3 py-1.5 text-sm font-medium text-slate-950">Add</button>
+            </div>
+            <textarea id="urlInput" rows="4" class="w-full rounded border border-line bg-slate-950 p-3 font-mono text-sm outline-none focus:border-accent" placeholder="Paste one or more target URLs"></textarea>
+            <p id="urlWarning" class="mt-2 min-h-5 text-sm text-amber-300"></p>
+            <p class="text-xs text-muted">Cookie tags come from gallery-dl supported sites marked with cookie authentication; they do not block public archives.</p>
+            <div id="urlList" class="mt-3 space-y-2"></div>
+          </section>
+
+          <section class="rounded-lg border border-line bg-panel p-4">
+            <h2 class="mb-3 font-medium">2. Save Location</h2>
+            <label class="block text-sm text-muted">Root folder for cases</label>
+            <div class="mt-1 flex flex-wrap gap-2">
+              <input id="outputDir" class="min-w-0 flex-1 rounded border border-line bg-slate-950 px-3 py-2 text-sm outline-none focus:border-accent" placeholder="/home/user/osint-archives" />
+              <button type="button" id="pickDirBtn" class="rounded border border-line px-3 py-2 text-sm">Pick</button>
+              <button type="button" id="saveDefaultRootBtn" class="rounded border border-line px-3 py-2 text-sm">Set default</button>
+            </div>
+            <p id="defaultRootHint" class="mt-2 min-h-5 break-all text-xs text-muted"></p>
+            <label class="mt-3 flex items-center gap-2 text-sm text-muted">
+              <input id="createOutputDir" type="checkbox" class="accent-sky-400" checked />
+              Create output directory if missing
+            </label>
+            <div class="mt-3 rounded border border-line bg-slate-950 p-3">
+              <h3 class="text-sm font-medium text-slate-200">Case details</h3>
+              <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="text-sm text-muted">Case name<input id="caseName" class="mt-1 w-full rounded border border-line bg-panel2 px-3 py-2 text-ink outline-none focus:border-accent" placeholder="case-001" /></label>
+                <label class="text-sm text-muted">Target label<input id="targetLabel" class="mt-1 w-full rounded border border-line bg-panel2 px-3 py-2 text-ink outline-none focus:border-accent" placeholder="target-a" /></label>
+              </div>
+              <label class="mt-3 block text-sm text-muted">Folder naming</label>
+              <select id="folderMode" class="mt-1 w-full rounded border border-line bg-panel2 px-3 py-2 text-sm outline-none focus:border-accent">
+                <option value="flat">Flat output directory</option>
+                <option value="case-target">case-name/target-label/</option>
+                <option value="case-target-date" selected>case-name/target-label/YYYY-MM-DD/</option>
+                <option value="case-target-datetime">case-name/target-label/YYYY-MM-DD_HH-mm-ss/</option>
+              </select>
+              <label class="mt-3 block text-sm text-muted">Notes<textarea id="notes" rows="3" class="mt-1 w-full rounded border border-line bg-panel2 px-3 py-2 text-ink outline-none focus:border-accent" placeholder="Analyst notes for this run"></textarea></label>
+            </div>
+            <div class="mt-3 rounded border border-line bg-slate-950 p-3">
+              <div class="text-xs uppercase tracking-wide text-muted">Final save path preview</div>
+              <div id="pathPreview" class="mt-1 break-all font-mono text-sm text-sky-200">Select an output directory</div>
+            </div>
+          </section>
+
+          <section class="rounded-lg border border-line bg-panel p-4">
+            <h2 class="mb-3 font-medium">3. Cookies</h2>
+            <div class="space-y-2 text-sm">
+              <label class="flex items-center gap-2"><input name="cookieMode" type="radio" value="none" class="accent-sky-400" checked /> No cookies</label>
+              <label class="flex items-center gap-2"><input name="cookieMode" type="radio" value="file" class="accent-sky-400" /> Select cookies.txt</label>
+              <label class="flex items-center gap-2"><input name="cookieMode" type="radio" value="browser" class="accent-sky-400" /> Browser cookies, explicit local profile</label>
+            </div>
+            <input id="cookiesFile" class="mt-3 w-full rounded border border-line bg-slate-950 px-3 py-2 text-sm outline-none focus:border-accent" placeholder="/path/to/cookies.txt" />
+            <div class="mt-3 flex gap-2">
+              <button type="button" id="detectProfilesBtn" class="rounded border border-line px-3 py-2 text-sm">Detect browser profiles</button>
+              <select id="browserProfile" class="min-w-0 flex-1 rounded border border-line bg-slate-950 px-3 py-2 text-sm outline-none focus:border-accent"></select>
+            </div>
+            <p class="mt-2 text-xs text-muted">Browser cookies are read locally only after you choose this mode and select a profile. Use only accounts you own or are authorized to use.</p>
+          </section>
+
+          <details class="rounded-lg border border-line bg-panel p-4">
+            <summary class="cursor-pointer font-medium">Download options</summary>
+            <div id="optionsGrid" class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2"></div>
+          </details>
+
+          <details class="rounded-lg border border-line bg-panel p-4">
+            <summary class="cursor-pointer font-medium">Advanced arguments</summary>
+            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label class="text-sm text-muted">User-Agent<input id="userAgent" class="mt-1 w-full rounded border border-line bg-slate-950 px-3 py-2 text-ink outline-none focus:border-accent" /></label>
+              <label class="text-sm text-muted">Proxy<input id="proxy" class="mt-1 w-full rounded border border-line bg-slate-950 px-3 py-2 text-ink outline-none focus:border-accent" /></label>
+              <label class="text-sm text-muted">Sleep delay<input id="sleepDelay" class="mt-1 w-full rounded border border-line bg-slate-950 px-3 py-2 text-ink outline-none focus:border-accent" placeholder="2" /></label>
+              <label class="text-sm text-muted">Rate limit<input id="rateLimit" class="mt-1 w-full rounded border border-line bg-slate-950 px-3 py-2 text-ink outline-none focus:border-accent" placeholder="1M" /></label>
+            </div>
+            <label class="mt-3 block text-sm text-muted">Filename template<input id="filenameTemplate" class="mt-1 w-full rounded border border-line bg-slate-950 px-3 py-2 text-ink outline-none focus:border-accent" /></label>
+            <label class="mt-3 block text-sm text-muted">Directory template<input id="directoryTemplate" class="mt-1 w-full rounded border border-line bg-slate-950 px-3 py-2 text-ink outline-none focus:border-accent" /></label>
+            <label class="mt-3 block text-sm text-muted">Extra gallery-dl arguments<input id="extraArgs" class="mt-1 w-full rounded border border-line bg-slate-950 px-3 py-2 font-mono text-ink outline-none focus:border-accent" placeholder='--verbose --retries 3' /></label>
+          </details>
+        </form>
+
+        <aside class="min-w-0 space-y-4">
+          <section class="rounded-lg border border-line bg-panel p-4">
+            <div class="mb-3 flex flex-wrap gap-2">
+              <button id="runBtn" class="rounded bg-sky-500 px-4 py-2 font-medium text-slate-950">Run archive</button>
+              <button id="stopBtn" class="rounded border border-line px-4 py-2">Stop</button>
+              <button id="clearLogsBtn" class="rounded border border-line px-4 py-2">Clear logs</button>
+              <button id="copyLogsBtn" class="rounded border border-line px-4 py-2">Copy logs</button>
+              <button id="openFolderBtn" class="rounded border border-line px-4 py-2">Open output folder</button>
+            </div>
+            <div id="formWarning" class="min-h-6 text-sm text-amber-300"></div>
+          </section>
+
+          <section class="rounded-lg border border-line bg-panel p-4">
+            <div class="mb-2 flex items-center justify-between">
+              <h2 class="font-medium">Run Logs</h2>
+              <span id="jobStatus" class="text-sm text-muted">Idle</span>
+            </div>
+            <pre id="logs" class="h-[52vh] max-h-[620px] min-h-80 max-w-full whitespace-pre-wrap break-words overflow-auto rounded border border-line bg-black p-3 text-sm text-slate-200"></pre>
+          </section>
+
+          <details class="rounded-lg border border-line bg-panel p-4">
+            <summary class="cursor-pointer font-medium">Command preview</summary>
+            <div class="mb-2 flex items-center justify-between">
+              <span></span>
+              <button id="copyCommandBtn" class="rounded border border-line px-3 py-1.5 text-sm">Copy</button>
+            </div>
+            <pre id="commandPreview" class="max-h-72 max-w-full whitespace-pre-wrap break-words overflow-auto rounded border border-line bg-slate-950 p-3 text-sm text-sky-100"></pre>
+          </details>
+
+          <details class="rounded-lg border border-line bg-panel p-4">
+            <summary class="cursor-pointer font-medium">Config preview</summary>
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span></span>
+              <div class="flex gap-2">
+                <button id="copyConfigBtn" class="rounded border border-line px-3 py-1.5 text-sm">Copy</button>
+                <button id="downloadConfigBtn" class="rounded border border-line px-3 py-1.5 text-sm">Download</button>
+                <button id="saveConfigBtn" class="rounded border border-line px-3 py-1.5 text-sm">Save through backend</button>
+              </div>
+            </div>
+            <pre id="configPreview" class="max-h-80 max-w-full whitespace-pre-wrap break-words overflow-auto rounded border border-line bg-slate-950 p-3 text-sm text-emerald-100"></pre>
+          </details>
+
+          <details class="rounded-lg border border-line bg-panel p-4">
+            <summary class="cursor-pointer font-medium">Presets</summary>
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span></span>
+              <div class="flex gap-2">
+                <input id="presetName" class="rounded border border-line bg-slate-950 px-3 py-1.5 text-sm outline-none focus:border-accent" placeholder="Preset name" />
+                <button id="savePresetBtn" class="rounded border border-line px-3 py-1.5 text-sm">Save</button>
+              </div>
+            </div>
+            <div id="presetList" class="flex flex-wrap gap-2"></div>
+          </details>
+        </aside>
+      </section>
+
+      <section class="rounded-lg border border-line bg-panel p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="font-medium">Review Saved Data</h2>
+            <p class="text-sm text-muted">Pick an archive folder, scan it, then browse media below.</p>
+          </div>
+          <div id="libraryStats" class="text-sm text-muted">No folder scanned</div>
+        </div>
+        <div class="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-[1fr_auto_auto_auto]">
+          <input id="libraryPath" class="min-w-0 rounded border border-line bg-slate-950 px-3 py-2 text-sm outline-none focus:border-accent" placeholder="/path/to/archive/folder" />
+          <button type="button" id="libraryUseOutputBtn" class="rounded border border-line px-3 py-2 text-sm">Use output folder</button>
+          <button type="button" id="libraryPickBtn" class="rounded border border-line px-3 py-2 text-sm">Pick folder</button>
+          <button type="button" id="scanLibraryBtn" class="rounded bg-sky-500 px-4 py-2 text-sm font-medium text-slate-950">Scan and view</button>
+        </div>
+        <div id="libraryViewer" class="mt-4 hidden border-t border-line pt-4">
+          <div id="libraryDialogPath" class="mb-3 break-all font-mono text-xs text-muted"></div>
+          <div class="mb-3 flex flex-wrap gap-2 text-sm">
+            <button type="button" class="libraryFilter rounded bg-sky-500 px-3 py-1.5 font-medium text-slate-950" data-filter="all">All</button>
+            <button type="button" class="libraryFilter rounded border border-line px-3 py-1.5" data-filter="image">Images</button>
+            <button type="button" class="libraryFilter rounded border border-line px-3 py-1.5" data-filter="video">Videos</button>
+            <button type="button" class="libraryFilter rounded border border-line px-3 py-1.5" data-filter="audio">Audio</button>
+            <button type="button" class="libraryFilter rounded border border-line px-3 py-1.5" data-filter="metadata">Metadata</button>
+          </div>
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+            <div id="libraryGrid" class="grid max-h-[58vh] min-h-52 grid-cols-1 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:block lg:space-y-2"></div>
+            <div id="libraryDetail" class="max-h-[64vh] min-h-52 overflow-auto rounded border border-line bg-slate-950 p-3 text-sm text-muted">Scan a folder to preview saved media.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>

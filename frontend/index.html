@@ -21,6 +21,44 @@
         }
       };
     </script>
+    <style>
+      @keyframes toast-in {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes toast-out {
+        from {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+      }
+
+      .toast-enter {
+        animation: toast-in 180ms ease-out both;
+      }
+
+      .toast-exit {
+        animation: toast-out 180ms ease-in both;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .toast-enter,
+        .toast-exit {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body class="min-h-screen bg-slate-950 text-ink">
     <main class="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 px-4 py-4">
@@ -202,6 +240,7 @@
         </div>
       </section>
     </main>
+    <div id="notifications" class="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2" aria-live="polite" aria-atomic="true"></div>
     <script src="./app.js"></script>
   </body>
 </html>

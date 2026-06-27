@@ -275,6 +275,33 @@ function shortHash(value) {
   return value ? `${value.slice(0, 12)}...${value.slice(-8)}` : "";
 }
 
+function notify(message, type = "info") {
+  if (!message) return;
+  const stack = $("notifications");
+  if (!stack) return;
+  const styles = {
+    info: "border-sky-800 bg-slate-950 text-sky-100",
+    success: "border-emerald-700 bg-emerald-950 text-emerald-100",
+    warning: "border-amber-700 bg-amber-950 text-amber-100",
+    error: "border-red-800 bg-red-950 text-red-100"
+  };
+  const toast = document.createElement("div");
+  toast.className = `toast-enter pointer-events-auto rounded border px-3 py-2 text-sm shadow-lg shadow-black/30 ${styles[type] || styles.info}`;
+  toast.textContent = message;
+  stack.append(toast);
+  setTimeout(() => {
+    toast.classList.remove("toast-enter");
+    toast.classList.add("toast-exit");
+    toast.addEventListener("animationend", () => toast.remove(), { once: true });
+    setTimeout(() => toast.remove(), 240);
+  }, 4200);
+}
+
+function setNotice(message, type = "info") {
+  $("formWarning").textContent = message;
+  notify(message, type);
+}
+
 function showCopyFeedback(button, message, className) {
   const originalText = button.textContent;
   const originalClass = button.className;
@@ -445,7 +472,7 @@ function renderLibraryDetail(item, container) {
         showCopyFeedback(copy, "Copied", "shrink-0 rounded border border-emerald-500 bg-emerald-500 px-2 py-1 text-xs font-medium text-slate-950");
       } catch (error) {
         showCopyFeedback(copy, "Failed", "shrink-0 rounded border border-red-700 bg-red-950 px-2 py-1 text-xs text-red-100");
-        $("formWarning").textContent = `Could not copy SHA-256: ${error.message}`;
+        setNotice(`Could not copy SHA-256: ${error.message}`, "error");
       }
     });
     hash.append(label, value, copy);
@@ -537,7 +564,7 @@ async function checkBackend() {
 async function startJob() {
   const warnings = validateForm();
   if (warnings.length) {
-    $("formWarning").textContent = warnings.join(" ");
+    setNotice(warnings.join(" "), "warning");
     return;
   }
   const response = await fetch(`${API_BASE}/api/jobs`, {
@@ -546,13 +573,14 @@ async function startJob() {
     body: JSON.stringify(jobPayload())
   });
   if (!response.ok) {
-    $("formWarning").textContent = await response.text();
+    setNotice(await response.text(), "error");
     return;
   }
   const data = await response.json();
   state.currentJobId = data.jobId;
   state.logs = [`Job ${data.jobId} created.`];
   $("jobStatus").textContent = "Running";
+  notify(`Archive job ${data.jobId} started.`, "success");
   connectLogStream(data.jobId);
   render();
 }
@@ -561,6 +589,7 @@ async function stopJob() {
   if (!state.currentJobId) return;
   await fetch(`${API_BASE}/api/jobs/${state.currentJobId}/stop`, { method: "POST" });
   $("jobStatus").textContent = "Stopping";
+  notify("Stopping archive job.", "warning");
 }
 
 function connectLogStream(jobId) {
@@ -575,24 +604,26 @@ function connectLogStream(jobId) {
     const status = JSON.parse(event.data);
     $("jobStatus").textContent = `${status.status} (${status.exitCode ?? "no exit code"})`;
     if (status.outputDir) $("libraryPath").value = status.outputDir;
+    notify(`Archive job ${status.status}.`, status.exitCode === 0 ? "success" : "warning");
     state.eventSource.close();
   });
   state.eventSource.onerror = () => {
     $("jobStatus").textContent = "Log stream disconnected";
+    notify("Log stream disconnected.", "warning");
   };
 }
 
 async function detectProfiles() {
   const response = await fetch(`${API_BASE}/api/browser-profiles`);
   if (!response.ok) {
-    $("formWarning").textContent = "Could not detect browser profiles.";
+    setNotice("Could not detect browser profiles.", "error");
     return;
   }
   const data = await response.json();
   const select = $("browserProfile");
   select.innerHTML = '<option value="">Select a local browser/profile</option>';
   if (!data.profiles.length) {
-    $("formWarning").textContent = data.notice;
+    setNotice(data.notice, "warning");
     return;
   }
   data.profiles.forEach((profile) => {
@@ -601,13 +632,13 @@ async function detectProfiles() {
     option.textContent = profile.label || (profile.profile ? `${profile.browser}: ${profile.profile}` : profile.browser);
     select.append(option);
   });
-  $("formWarning").textContent = data.notice;
+  setNotice(data.notice, "success");
 }
 
 async function openOutputFolder() {
   collectStateFromInputs();
   if (!state.outputDir) {
-    $("formWarning").textContent = "Choose or enter an output directory first.";
+    setNotice("Choose or enter an output directory first.", "warning");
     return;
   }
   const path = state.finalOutputDir || localFinalPathPreview();
@@ -617,22 +648,22 @@ async function openOutputFolder() {
     body: JSON.stringify({ path, create: $("createOutputDir").checked })
   });
   if (!response.ok) {
-    $("formWarning").textContent = await response.text();
+    setNotice(await response.text(), "error");
     return;
   }
   const data = await response.json();
-  $("formWarning").textContent = `Opened ${data.path} with ${data.opener}.`;
+  setNotice(`Opened ${data.path} with ${data.opener}.`, "success");
 }
 
 function saveDefaultRoot() {
   collectStateFromInputs();
   if (!state.outputDir) {
-    $("formWarning").textContent = "Enter or pick a root folder before setting it as the default.";
+    setNotice("Enter or pick a root folder before setting it as the default.", "warning");
     return;
   }
   localStorage.setItem(DEFAULT_ROOT_KEY, state.outputDir);
   state.defaultRootDir = state.outputDir;
-  $("formWarning").textContent = "Default case root saved.";
+  setNotice("Default case root saved.", "success");
   render();
 }
 
@@ -640,11 +671,11 @@ async function scanLibrary() {
   if (state.library.scanning) return;
   const path = $("libraryPath").value.trim() || state.finalOutputDir || localFinalPathPreview();
   if (!path || path === "Select an output directory") {
-    $("formWarning").textContent = "Choose an archive folder to scan.";
+    setNotice("Choose an archive folder to scan.", "warning");
     return;
   }
   state.library.scanning = true;
-  $("formWarning").textContent = "Scanning saved data...";
+  setNotice("Scanning saved data...", "info");
   let data;
   try {
     const response = await fetch(`${API_BASE}/api/library/scan`, {
@@ -653,12 +684,12 @@ async function scanLibrary() {
       body: JSON.stringify({ path, maxFiles: 3000, maxDepth: 8 })
     });
     if (!response.ok) {
-      $("formWarning").textContent = await response.text();
+      setNotice(await response.text(), "error");
       return;
     }
     data = await response.json();
   } catch (error) {
-    $("formWarning").textContent = `Could not scan saved data: ${error.message}`;
+    setNotice(`Could not scan saved data: ${error.message}`, "error");
     return;
   } finally {
     state.library.scanning = false;
@@ -671,7 +702,7 @@ async function scanLibrary() {
   state.library.selected = data.items.find((item) => item.kind === "video") || data.items.find((item) => item.kind === "image") || data.items[0] || null;
   $("libraryPath").value = data.path;
   const truncatedNote = data.truncated ? ` Showing first ${data.maxFiles} files.` : "";
-  $("formWarning").textContent = `Scanned ${data.items.length} files from ${data.path}.${truncatedNote}`;
+  setNotice(`Scanned ${data.items.length} files from ${data.path}.${truncatedNote}`, "success");
   renderLibrary();
   $("libraryViewer").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -680,21 +711,25 @@ function useCurrentOutputForLibrary() {
   collectStateFromInputs();
   const path = state.finalOutputDir || localFinalPathPreview();
   if (!path || path === "Select an output directory") {
-    $("formWarning").textContent = "Choose an output directory first.";
+    setNotice("Choose an output directory first.", "warning");
     return;
   }
   $("libraryPath").value = path;
-  $("formWarning").textContent = "Saved Data will scan the current output folder.";
+  setNotice("Saved Data will scan the current output folder.", "info");
 }
 
 function savePreset() {
   const name = $("presetName").value.trim();
-  if (!name) return;
+  if (!name) {
+    setNotice("Enter a preset name before saving.", "warning");
+    return;
+  }
   const presets = JSON.parse(localStorage.getItem("galleryDlPresets") || "{}");
   presets[name] = jobPayload();
   localStorage.setItem("galleryDlPresets", JSON.stringify(presets));
   $("presetName").value = "";
   renderPresets();
+  notify(`Preset "${name}" saved.`, "success");
 }
 
 function loadPreset(name) {
@@ -715,6 +750,7 @@ function loadPreset(name) {
   Object.keys(state.advanced).forEach((key) => {
     $(key).value = state.advanced[key] || "";
   });
+  notify(`Preset "${name}" loaded.`, "success");
   render();
 }
 
@@ -723,6 +759,7 @@ function deletePreset(name) {
   delete presets[name];
   localStorage.setItem("galleryDlPresets", JSON.stringify(presets));
   renderPresets();
+  notify(`Preset "${name}" deleted.`, "warning");
 }
 
 function downloadConfig() {
@@ -732,6 +769,7 @@ function downloadConfig() {
   link.download = "gallery-dl.conf";
   link.click();
   URL.revokeObjectURL(link.href);
+  notify("Config download started.", "success");
 }
 
 async function saveConfigThroughBackend() {
@@ -740,11 +778,24 @@ async function saveConfigThroughBackend() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ config: jobPayload(), filename: "gallery-dl.conf" })
   });
-  $("formWarning").textContent = response.ok ? `Saved config: ${(await response.json()).path}` : await response.text();
+  if (response.ok) {
+    setNotice(`Saved config: ${(await response.json()).path}`, "success");
+  } else {
+    setNotice(await response.text(), "error");
+  }
 }
 
 async function copyText(value) {
   await navigator.clipboard.writeText(value);
+}
+
+async function copyTextWithNotice(value, label) {
+  try {
+    await copyText(value);
+    notify(`${label} copied.`, "success");
+  } catch (error) {
+    setNotice(`Could not copy ${label.toLowerCase()}: ${error.message}`, "error");
+  }
 }
 
 function isFirefoxBrowser() {
@@ -754,12 +805,12 @@ function isFirefoxBrowser() {
 async function pickDirectoryInBrowser() {
   const handle = await window.showDirectoryPicker();
   $("outputDir").value = handle.name;
-  $("formWarning").textContent = "Browser picker selected this folder name. Browsers do not expose the full local path, so use the backend picker or paste the full path before running.";
+  setNotice("Browser picker selected this folder name. Browsers do not expose the full local path, so use the backend picker or paste the full path before running.", "warning");
   render();
 }
 
 async function pickDirectoryPathThroughBackend() {
-  $("formWarning").textContent = "Opening local directory picker...";
+  setNotice("Opening local directory picker...", "info");
   const response = await fetch(`${API_BASE}/api/paths/pick`, { method: "POST" });
   if (!response.ok) {
     throw new Error(await response.text());
@@ -770,7 +821,7 @@ async function pickDirectoryPathThroughBackend() {
 async function pickDirectoryThroughBackend() {
   const data = await pickDirectoryPathThroughBackend();
   $("outputDir").value = data.path;
-  $("formWarning").textContent = `Selected with ${data.picker}.`;
+  setNotice(`Selected with ${data.picker}.`, "success");
   render();
 }
 
@@ -786,9 +837,9 @@ async function pickLibraryFolder() {
   try {
     const data = await pickDirectoryPathThroughBackend();
     $("libraryPath").value = data.path;
-    $("formWarning").textContent = `Saved Data folder selected with ${data.picker}.`;
+    setNotice(`Saved Data folder selected with ${data.picker}.`, "success");
   } catch (error) {
-    $("formWarning").textContent = `Saved Data picker is unavailable: ${error.message}`;
+    setNotice(`Saved Data picker is unavailable: ${error.message}`, "error");
   }
 }
 
@@ -804,10 +855,11 @@ function bindInputs() {
   onClick("clearLogsBtn", () => {
     state.logs = [];
     render();
+    notify("Logs cleared.", "success");
   });
-  onClick("copyLogsBtn", () => copyText(state.logs.join("\n")));
-  onClick("copyCommandBtn", () => copyText(state.commandPreview));
-  onClick("copyConfigBtn", () => copyText(state.configPreview));
+  onClick("copyLogsBtn", () => copyTextWithNotice(state.logs.join("\n"), "Logs"));
+  onClick("copyCommandBtn", () => copyTextWithNotice(state.commandPreview, "Command"));
+  onClick("copyConfigBtn", () => copyTextWithNotice(state.configPreview, "Config"));
   onClick("downloadConfigBtn", downloadConfig);
   onClick("saveConfigBtn", saveConfigThroughBackend);
   onClick("savePresetBtn", savePreset);
@@ -831,7 +883,7 @@ function bindInputs() {
         return;
       } catch (error) {
         if (error.name === "AbortError") return;
-        $("formWarning").textContent = `Browser picker failed: ${error.message}`;
+        setNotice(`Browser picker failed: ${error.message}`, "error");
       }
     }
 
@@ -839,11 +891,11 @@ function bindInputs() {
       await pickDirectoryThroughBackend();
       return;
     } catch (error) {
-      $("formWarning").textContent = `Backend directory picker is unavailable: ${error.message}`;
+      setNotice(`Backend directory picker is unavailable: ${error.message}`, "error");
     }
 
     if (!window.showDirectoryPicker || isFirefoxBrowser()) {
-      $("formWarning").textContent += " Paste the path manually, or start the backend and open this app from its local URL.";
+      setNotice(`${$("formWarning").textContent} Paste the path manually, or start the backend and open this app from its local URL.`, "warning");
       return;
     }
     await pickDirectoryInBrowser();

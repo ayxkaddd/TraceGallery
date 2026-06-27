@@ -271,6 +271,23 @@ function mediaUrl(item) {
   return `${API_BASE}${item.url}`;
 }
 
+function shortHash(value) {
+  return value ? `${value.slice(0, 12)}...${value.slice(-8)}` : "";
+}
+
+function showCopyFeedback(button, message, className) {
+  const originalText = button.textContent;
+  const originalClass = button.className;
+  button.textContent = message;
+  button.className = className;
+  button.disabled = true;
+  setTimeout(() => {
+    button.textContent = originalText;
+    button.className = originalClass;
+    button.disabled = false;
+  }, 1400);
+}
+
 function renderLibrary() {
   const stats = $("libraryStats");
   const grid = $("libraryGrid");
@@ -407,6 +424,33 @@ function renderLibraryDetail(item, container) {
     <div><span class="text-slate-400">Modified:</span> ${item.modified}</div>
     <div><span class="text-slate-400">MIME:</span> ${item.mime}</div>
   `;
+  if (item.sha256) {
+    const hash = document.createElement("div");
+    hash.className = "flex min-w-0 items-center gap-2 sm:col-span-2";
+    const label = document.createElement("span");
+    label.className = "shrink-0 text-slate-400";
+    label.textContent = "SHA-256:";
+    const value = document.createElement("span");
+    value.className = "min-w-0 truncate font-mono text-slate-200";
+    value.textContent = shortHash(item.sha256);
+    value.title = item.sha256;
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "shrink-0 rounded border border-line px-2 py-1 text-xs text-sky-200 hover:border-accent";
+    copy.textContent = "Copy";
+    copy.title = "Copy full SHA-256";
+    copy.addEventListener("click", async () => {
+      try {
+        await copyText(item.sha256);
+        showCopyFeedback(copy, "Copied", "shrink-0 rounded border border-emerald-500 bg-emerald-500 px-2 py-1 text-xs font-medium text-slate-950");
+      } catch (error) {
+        showCopyFeedback(copy, "Failed", "shrink-0 rounded border border-red-700 bg-red-950 px-2 py-1 text-xs text-red-100");
+        $("formWarning").textContent = `Could not copy SHA-256: ${error.message}`;
+      }
+    });
+    hash.append(label, value, copy);
+    facts.append(hash);
+  }
   container.append(facts);
 }
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import argparse
 import configparser
+import hashlib
 import json
 import mimetypes
 import os
@@ -183,6 +184,14 @@ def format_size(size: int) -> str:
             return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
         value /= 1024
     return f"{size} B"
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def first_http_url(value: Any) -> str:
@@ -383,6 +392,7 @@ def scan_library(path_value: str, max_files: int = 3000, max_depth: int = 8) -> 
             "sizeLabel": format_size(stat.st_size),
             "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
             "mime": mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+            "sha256": sha256_file(path),
             "url": f"/api/library/{root_id}/files/{encoded_relative}",
             "sidecar": sidecar_relative,
             "summary": load_metadata_summary(summary_source, path) if summary_source else {},

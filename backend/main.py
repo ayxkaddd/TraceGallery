@@ -457,8 +457,8 @@ def pick_directory_with_native_dialog() -> tuple[Path, str]:
             selected = result.stdout.strip()
             if result.returncode == 0 and selected:
                 return Path(selected).expanduser().resolve(), command[0]
-            if result.returncode not in (0, 1):
-                continue
+            if result.returncode in (0, 1):
+                raise HTTPException(status_code=400, detail="Directory selection was cancelled.")
         return pick_directory_with_tk()
 
     if system == "Darwin":
@@ -483,10 +483,12 @@ def pick_directory_with_tk() -> tuple[Path, str]:
         raise HTTPException(status_code=400, detail=f"No native directory picker is available: {exc}") from exc
 
     root = tk.Tk()
-    root.withdraw()
-    root.attributes("-topmost", True)
-    selected = filedialog.askdirectory(title="Select output directory", initialdir=str(Path.home()))
-    root.destroy()
+    try:
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askdirectory(title="Select output directory", initialdir=str(Path.home()))
+    finally:
+        root.destroy()
     if not selected:
         raise HTTPException(status_code=400, detail="Directory selection was cancelled.")
     return Path(selected).expanduser().resolve(), "tkinter"
@@ -901,7 +903,7 @@ async def open_path(payload: PathRequest) -> dict[str, str]:
 
 @app.post("/api/paths/pick")
 async def pick_path() -> dict[str, str]:
-    path, picker = await asyncio.to_thread(pick_directory_with_native_dialog)
+    path, picker = pick_directory_with_native_dialog()
     if not path.is_dir():
         raise HTTPException(status_code=400, detail="Selected path is not a directory.")
     return {"path": str(path), "picker": picker}
